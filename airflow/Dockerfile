@@ -1,0 +1,4 @@
+FROM puckel/docker-airflow@sha256:82654d8b384be9fe79cca5d41a599cf1d2504c7e57b3d97cb577b978dcf84779
+USER root
+RUN pip install kubernetes
+USER airflow

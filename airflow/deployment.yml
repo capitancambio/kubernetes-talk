@@ -1,0 +1,163 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubernetes-talk
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: airflow-claim
+  namespace: kubernetes-talk
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: kubernetes-talk
+data:
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: airflow
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: kubernetes-talk
+  name: pod-master
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-master
+  namespace: kubernetes-talk
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: kubernetes-talk
+roleRef:
+  kind: Role
+  name: pod-master
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: airflow-dags
+  namespace: kubernetes-talk
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: airflow
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      volumes:
+        - name: airflow-storage-volume
+          persistentVolumeClaim:
+            claimName: airflow-claim
+      containers:
+        # DAG SYNC
+        - name: dag-sync
+          securityContext:
+            runAsUser: 0
+          image: k8s.gcr.io/git-sync:v3.0.1
+          env:
+            - name: GIT_SYNC_REPO
+              value: "https://github.com/capitancambio/dags-example.git"
+            - name: GIT_SYNC_ROOT
+              value: "/usr/local/airflow/shared/dags"
+            - name: GIT_SYNC_DEST
+              value: "git-dags"
+            - name: GIT_SYNC_BRANCH
+              value: "master"
+            - name: GIT_SYNC_WAIT
+              value: "10"
+
+          volumeMounts:
+            - name: airflow-storage-volume
+              mountPath: /usr/local/airflow/shared
+
+        # Airflow webserver
+        - name: airflow
+          image: "airflow-talk:latest"
+          imagePullPolicy: Never # so we can share our docker images with minikube
+          env:
+            - name: PYTHONPATH
+              value: "/usr/local/airflow/shared/dags/git-dags/dags"
+            - name: EXECUTOR
+              value: "Local"
+            - name: LOAD_EX
+              value: "n"
+            - name: POSTGRES_HOST
+              value: localhost
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: AIRFLOW__CORE__DAGS_FOLDER
+              value: /usr/local/airflow/shared/dags/git-dags
+            - name: AIRFLOW__CORE__BASE_LOG_FOLDER
+              value: /usr/local/airflow/shared/log
+
+          volumeMounts:
+            - name: airflow-storage-volume
+              mountPath: /usr/local/airflow/shared
+
+          ports:
+            - containerPort: 8080
+        - image: "postgres:10.1"
+          name: postgres
+          envFrom:
+            - configMapRef:
+                name: postgres-config
+# SFTP to ingest and store data
+---
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: sftp
+  namespace: kubernetes-talk
+spec:
+  selector:
+    matchLabels:
+      app: sftp
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: sftp
+    spec:
+      containers:
+        - image: atmoz/sftp
+          args: ["octopus:tentacle:::upload"]
+          name: sftp
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sftp
+  namespace: kubernetes-talk
+spec:
+  type: NodePort
+  selector:
+    app: sftp
+  ports:
+    - port: 22
+      targetPort: 22
+---
+

@@ -1,0 +1,3 @@
+[console_scripts]
+scripts = scripts.transform:main
+

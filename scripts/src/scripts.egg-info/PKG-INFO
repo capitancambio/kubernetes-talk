@@ -1,0 +1,12 @@
+Metadata-Version: 1.0
+Name: scripts
+Version: 0.0.1.dev0
+Summary: Example scripts for the kubernetes talk
+Home-page: https://github.com/capitancambio/kubernetes-talk
+Author: Javier Asensio Cubero
+Author-email: javier.asensio@octoenergy.com
+License: Beer license
+Description: # Scripts
+        To be executed by dags in the kubernetes cluster
+        
+Platform: UNKNOWN

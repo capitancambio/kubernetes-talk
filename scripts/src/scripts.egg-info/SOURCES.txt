@@ -1,0 +1,10 @@
+README.md
+setup.py
+src/scripts/__init__.py
+src/scripts/transform.py
+src/scripts.egg-info/PKG-INFO
+src/scripts.egg-info/SOURCES.txt
+src/scripts.egg-info/dependency_links.txt
+src/scripts.egg-info/entry_points.txt
+src/scripts.egg-info/not-zip-safe
+src/scripts.egg-info/top_level.txt
